@@ -49,18 +49,20 @@ function updateGA4Links(measurementId) {
       });
   }
 
-  updateLinksWithParameters(
-    localStorage.getItem('client_id'),
-    localStorage.getItem('session_id')
-  );
+  window.addEventListener('DOMContentLoaded', () => {
+    updateLinksWithParameters(
+      localStorage.getItem('client_id'),
+      localStorage.getItem('session_id')
+    );
 
-  Promise.all([getGtagParameter('client_id'), getGtagParameter('session_id')])
-    .then(([clientId, sessionId]) => {
-      storeInLocalStorage('client_id', clientId);
-      storeInLocalStorage('session_id', sessionId);
-      updateLinksWithParameters(clientId, sessionId);
-    })
-    .catch((error) => {
-      console.error('[GA4] Error retrieving parameters:', error);
-    });
+    Promise.all([getGtagParameter('client_id'), getGtagParameter('session_id')])
+      .then(([clientId, sessionId]) => {
+        storeInLocalStorage('client_id', clientId);
+        storeInLocalStorage('session_id', sessionId);
+        updateLinksWithParameters(clientId, sessionId);
+      })
+      .catch((error) => {
+        console.error('[GA4] Error retrieving parameters:', error);
+      });
+  });
 }
