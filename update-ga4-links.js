@@ -98,6 +98,10 @@ function updateGA4Links(measurementId) {
     var initialParams = collectParams();
     updateLinks(initialParams);
 
+    new MutationObserver(function () {
+      updateLinks(collectParams());
+    }).observe(document.body, { childList: true, subtree: true });
+
     // Phase 2: fetch GA4 params, persist everything, update links
     requestGa4Params();
 
