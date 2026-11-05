@@ -1,9 +1,5 @@
 function updateGA4Links(measurementId) {
-  if (typeof gtag !== 'function') {
-    console.warn('[GA4] gtag is not available globally. Only FB params will be used.');
-  }
-
-  var gtagAvailable = typeof gtag === 'function';
+  var ga4Requested = false;
   var LINK_SELECTOR = 'a[href*="go.guiademoteis.com.br"]';
   var RETRY_INTERVAL_MS = 2000;
   var MAX_RETRIES = 5;
@@ -45,9 +41,7 @@ function updateGA4Links(measurementId) {
   }
 
   function hasAllParams(params) {
-    var hasFb = !!(params.fbp && params.fbc);
-    var hasGa4 = !!(params.client_id && params.session_id);
-    return gtagAvailable ? (hasFb && hasGa4) : hasFb;
+    return !!(params.fbp && params.fbc && params.client_id && params.session_id);
   }
 
   function persistParams(params) {
@@ -81,32 +75,37 @@ function updateGA4Links(measurementId) {
       });
   }
 
+  function requestGa4Params() {
+    if (ga4Requested || typeof gtag !== 'function') return;
+    ga4Requested = true;
+    Promise.all([getGtagParameter('client_id'), getGtagParameter('session_id')])
+      .then(function (results) {
+        var clientId = results[0];
+        var sessionId = results[1];
+        saveToStorage('client_id', clientId);
+        saveToStorage('session_id', sessionId);
+        var params = collectParams();
+        persistParams(params);
+        updateLinks(params);
+      })
+      .catch(function (error) {
+        console.error('[GA4] Error retrieving parameters:', error);
+      });
+  }
+
   window.addEventListener('DOMContentLoaded', function () {
     // Phase 1: apply whatever is already available (localStorage, cookies)
     var initialParams = collectParams();
     updateLinks(initialParams);
 
     // Phase 2: fetch GA4 params, persist everything, update links
-    if (gtagAvailable) {
-      Promise.all([getGtagParameter('client_id'), getGtagParameter('session_id')])
-        .then(function (results) {
-          var clientId = results[0];
-          var sessionId = results[1];
-          saveToStorage('client_id', clientId);
-          saveToStorage('session_id', sessionId);
-          var params = collectParams();
-          persistParams(params);
-          updateLinks(params);
-        })
-        .catch(function (error) {
-          console.error('[GA4] Error retrieving parameters:', error);
-        });
-    }
+    requestGa4Params();
 
     // Phase 3: retry for late FB cookies, only update if something changed
     var retries = 0;
     var retryInterval = setInterval(function () {
       retries++;
+      requestGa4Params();
       var params = collectParams();
       var changed =
         params.fbp !== localStorage.getItem('fbp') ||
@@ -115,8 +114,11 @@ function updateGA4Links(measurementId) {
         persistParams(params);
         updateLinks(params);
       }
-      if (hasAllParams(params) || retries >= MAX_RETRIES) {
+      if ((ga4Requested && hasAllParams(params)) || retries >= MAX_RETRIES) {
         clearInterval(retryInterval);
+        if (!ga4Requested) {
+          console.warn('[GA4] gtag is not available globally. Only FB params will be used.');
+        }
       }
     }, RETRY_INTERVAL_MS);
   });
